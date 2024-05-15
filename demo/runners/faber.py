@@ -58,7 +58,7 @@ class FaberAgent(AriesAgent):
             ident,
             http_port,
             admin_port,
-            prefix="Faber",
+            prefix="Authorized Entity",
             no_auto=no_auto,
             endorser_role=endorser_role,
             revocation=revocation,
@@ -91,11 +91,12 @@ class FaberAgent(AriesAgent):
         if aip == 10:
             # define attributes to send for credential
             self.cred_attrs[cred_def_id] = {
-                "name": "Alice Smith",
+                "id": "Drone 1",
                 "date": "2018-05-28",
-                "degree": "Maths",
-                "birthdate_dateint": birth_date.strftime(birth_date_format),
+                "branch_approval": "Air Force",
+                "circulation_start_dateint": birth_date.strftime(birth_date_format),
                 "timestamp": str(int(time.time())),
+                "mission_type": "Mine capture",
             }
 
             cred_preview = {
@@ -118,11 +119,12 @@ class FaberAgent(AriesAgent):
         elif aip == 20:
             if cred_type == CRED_FORMAT_INDY:
                 self.cred_attrs[cred_def_id] = {
-                    "name": "Alice Smith",
+                    "id": "Drone 1",
                     "date": "2018-05-28",
-                    "degree": "Maths",
-                    "birthdate_dateint": birth_date.strftime(birth_date_format),
+                    "branch_approval": "Air Force",
+                    "circulation_start_dateint": birth_date.strftime(birth_date_format),
                     "timestamp": str(int(time.time())),
+                    "mission_type": "Mine capture",
                 }
 
                 cred_preview = {
@@ -167,6 +169,7 @@ class FaberAgent(AriesAgent):
                                     "gender": "Female",
                                     "birthCountry": "Bahamas",
                                     "birthDate": "1958-07-17",
+                                    "mission_type": "Mine capture",
                                 },
                             },
                             "options": {"proofType": SIG_TYPE_BLS},
@@ -191,18 +194,18 @@ class FaberAgent(AriesAgent):
         if aip == 10:
             req_attrs = [
                 {
-                    "name": "name",
-                    "restrictions": [{"schema_name": "degree schema"}],
+                    "name": "id",
+                    "restrictions": [{"schema_name": "drone schema"}],
                 },
                 {
                     "name": "date",
-                    "restrictions": [{"schema_name": "degree schema"}],
+                    "restrictions": [{"schema_name": "drone schema"}],
                 },
             ]
             if revocation:
                 req_attrs.append(
                     {
-                        "name": "degree",
+                        "name": "branch_approval",
                         "restrictions": [{"schema_name": "degree schema"}],
                         "non_revoked": {"to": int(time.time() - 1)},
                     },
@@ -210,8 +213,14 @@ class FaberAgent(AriesAgent):
             else:
                 req_attrs.append(
                     {
-                        "name": "degree",
-                        "restrictions": [{"schema_name": "degree schema"}],
+                        "name": "branch_approval",
+                        "restrictions": [{"schema_name": "drone schema"}],
+                    })
+                req_attrs.append(
+                    {
+                        "name":"mission_type",
+                        "restrictions": []
+                        #****
                     }
                 )
             if SELF_ATTESTED:
@@ -222,14 +231,14 @@ class FaberAgent(AriesAgent):
             req_preds = [
                 # test zero-knowledge proofs
                 {
-                    "name": "birthdate_dateint",
+                    "name": "circulation_start_dateint",
                     "p_type": "<=",
                     "p_value": int(birth_date.strftime(birth_date_format)),
-                    "restrictions": [{"schema_name": "degree schema"}],
+                    "restrictions": [{"schema_name": "drone schema"}],
                 }
             ]
             indy_proof_request = {
-                "name": "Proof of Education",
+                "name": "Proof of Certification",
                 "version": "1.0",
                 "requested_attributes": {
                     f"0_{req_attr['name']}_uuid": req_attr for req_attr in req_attrs
@@ -254,27 +263,32 @@ class FaberAgent(AriesAgent):
             if cred_type == CRED_FORMAT_INDY:
                 req_attrs = [
                     {
-                        "name": "name",
-                        "restrictions": [{"schema_name": "degree schema"}],
+                        "name": "id",
+                        "restrictions": [{"schema_name": "drone schema"}],
                     },
                     {
                         "name": "date",
-                        "restrictions": [{"schema_name": "degree schema"}],
+                        "restrictions": [{"schema_name": "drone schema"}],
                     },
                 ]
                 if revocation:
                     req_attrs.append(
                         {
                             "name": "degree",
-                            "restrictions": [{"schema_name": "degree schema"}],
+                            "restrictions": [{"schema_name": "drone schema"}],
                             "non_revoked": {"to": int(time.time() - 1)},
-                        },
+                        }
                     )
                 else:
                     req_attrs.append(
                         {
-                            "name": "degree",
-                            "restrictions": [{"schema_name": "degree schema"}],
+                            "name": "branch_approval",
+                            "restrictions": [{"schema_name": "drone schema"}],
+                        })
+                    req_attrs.append(
+                        {
+                            "name":"mission_type",
+                            "restrictions": []
                         }
                     )
                 if SELF_ATTESTED:
@@ -285,14 +299,14 @@ class FaberAgent(AriesAgent):
                 req_preds = [
                     # test zero-knowledge proofs
                     {
-                        "name": "birthdate_dateint",
+                        "name": "circulation_start_dateint",
                         "p_type": "<=",
                         "p_value": int(birth_date.strftime(birth_date_format)),
-                        "restrictions": [{"schema_name": "degree schema"}],
+                        "restrictions": [{"schema_name": "drone schema"}],
                     }
                 ]
                 indy_proof_request = {
-                    "name": "Proof of Education",
+                    "name": "Proof of Certification",
                     "version": "1.0",
                     "requested_attributes": {
                         f"0_{req_attr['name']}_uuid": req_attr for req_attr in req_attrs
@@ -425,14 +439,23 @@ async def main(args):
             extra_args=extra_args,
         )
 
-        faber_schema_name = "degree schema"
+        faber_schema_name = "drone schema"
         faber_schema_attrs = [
-            "name",
+            "id",
             "date",
-            "degree",
-            "birthdate_dateint",
+            "branch_approval",
+            "circulation_start_dateint",
             "timestamp",
+            "mission_type"
         ]
+
+        faber_own_schema_name = "personal schema"
+        faber_own_schema_attrs = [
+            "id",
+            "approved"
+        ]
+        exchange_tracing = False
+
         if faber_agent.cred_type == CRED_FORMAT_INDY:
             faber_agent.public_did = True
             await faber_agent.initialize(
@@ -445,6 +468,7 @@ async def main(args):
                     else False
                 ),
             )
+
         elif faber_agent.cred_type == CRED_FORMAT_JSON_LD:
             faber_agent.public_did = True
             await faber_agent.initialize(the_agent=agent)
@@ -456,30 +480,31 @@ async def main(args):
             display_qr=True, reuse_connections=faber_agent.reuse_connections, wait=True
         )
 
-        exchange_tracing = False
+        
         options = (
             "    (1) Issue Credential\n"
             "    (2) Send Proof Request\n"
-            "    (2a) Send *Connectionless* Proof Request (requires a Mobile client)\n"
-            "    (3) Send Message\n"
-            "    (4) Create New Invitation\n"
+            # "    (2a) Send *Connectionless* Proof Request (requires a Mobile client)\n"
+            #"    (3) Send Message\n"
+            # "    (4) Create New Invitation\n"
         )
-        if faber_agent.revocation:
-            options += (
-                "    (5) Revoke Credential\n"
-                "    (6) Publish Revocations\n"
-                "    (7) Rotate Revocation Registry\n"
-                "    (8) List Revocation Registries\n"
-            )
-        if faber_agent.endorser_role and faber_agent.endorser_role == "author":
-            options += "    (D) Set Endorser's DID\n"
-        if faber_agent.multitenant:
-            options += "    (W) Create and/or Enable Wallet\n"
-        options += "    (T) Toggle tracing on credential/proof exchange\n"
-        options += "    (X) Exit?\n[1/2/3/4/{}{}T/X] ".format(
-            "5/6/7/8/" if faber_agent.revocation else "",
-            "W/" if faber_agent.multitenant else "",
-        )
+        options += "    (X) Exit?\n[1/2/X] "
+        # if faber_agent.revocation:
+        #     options += (
+        #         "    (5) Revoke Credential\n"
+        #         "    (6) Publish Revocations\n"
+        #         "    (7) Rotate Revocation Registry\n"
+        #         "    (8) List Revocation Registries\n"
+        #     )
+        # if faber_agent.endorser_role and faber_agent.endorser_role == "author":
+        #     options += "    (D) Set Endorser's DID\n"
+        # if faber_agent.multitenant:
+        #     options += "    (W) Create and/or Enable Wallet\n"
+        # options += "    (T) Toggle tracing on credential/proof exchange\n"
+        # options += "    (X) Exit?\n[1/2/3/4/{}{}T/X] ".format(
+        #     "5/6/7/8/" if faber_agent.revocation else "",
+        #     "W/" if faber_agent.multitenant else "",
+        # )
         async for option in prompt_loop(options):
             if option is not None:
                 option = option.strip()
@@ -535,7 +560,7 @@ async def main(args):
                 )
 
             elif option == "1":
-                log_status("#13 Issue credential offer to X")
+                log_status("#3 Issue credential offer to Drone")
 
                 if faber_agent.aip == 10:
                     offer_request = faber_agent.agent.generate_credential_offer(
@@ -575,7 +600,7 @@ async def main(args):
                     raise Exception(f"Error invalid AIP level: {faber_agent.aip}")
 
             elif option == "2":
-                log_status("#20 Request proof of degree from alice")
+                log_status("#20 Request proof of certification from drone")
                 if faber_agent.aip == 10:
                     proof_request_web_request = (
                         faber_agent.agent.generate_proof_request_web_request(
@@ -624,7 +649,7 @@ async def main(args):
                     raise Exception(f"Error invalid AIP level: {faber_agent.aip}")
 
             elif option == "2a":
-                log_status("#20 Request * Connectionless * proof of degree from alice")
+                log_status("#20 Request * Connectionless * proof of certification from drone")
                 if faber_agent.aip == 10:
                     proof_request_web_request = (
                         faber_agent.agent.generate_proof_request_web_request(
@@ -716,7 +741,7 @@ async def main(args):
             elif option == "4":
                 log_msg(
                     "Creating a new invitation, please receive "
-                    "and accept this invitation using Alice agent"
+                    "and accept this invitation using Drone agent"
                 )
                 await faber_agent.generate_invitation(
                     display_qr=True,

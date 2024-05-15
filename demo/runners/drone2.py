@@ -48,7 +48,7 @@ class AliceAgent(AriesAgent):
             ident,
             http_port,
             admin_port,
-            prefix="Drone 1",
+            prefix="Drone 2",
             no_auto=no_auto,
             seed=None,
             aip=aip,
@@ -158,7 +158,7 @@ async def main(args):
         log_status("#2 Input invitation details")
         await input_invitation(alice_agent)
 
-        options = "    (1) Input New Invitation\n"
+        options = "    (1) Send Message\n" "    (2) Input New Invitation\n"
         if alice_agent.endorser_role and alice_agent.endorser_role == "author":
             options += "    (D) Set Endorser's DID\n"
         if alice_agent.multitenant:
@@ -199,7 +199,7 @@ async def main(args):
                         taa_accept=alice_agent.taa_accept,
                     )
 
-            elif option == "M":
+            elif option == "1":
                 msg = await prompt("Enter message: ")
                 if msg:
                     log_status(alice_agent.agent.connection_id)
@@ -208,7 +208,7 @@ async def main(args):
                         {"content": msg},
                     )
 
-            elif option == "1":
+            elif option == "2":
                 # handle new invitation
                 log_status("Input new invitation details")
                 await input_invitation(alice_agent)

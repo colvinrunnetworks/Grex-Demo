@@ -59,7 +59,7 @@ class AcmeAgent(AriesAgent):
             ident,
             http_port,
             admin_port,
-            prefix="Ground Control Station",
+            prefix="Ground Control Station (2)",
             no_auto=no_auto,
             **kwargs,
         )
@@ -302,22 +302,6 @@ class AcmeAgent(AriesAgent):
             self.set_mission_details(message["content"])
             self.set_mission_completed(True)
 
-    async def collect_destinations(self):
-        dest = []
-        while True:
-            lat = await prompt("Enter latitude (or 'exit' to stop): ")
-            if lat.lower() == "exit":
-                break
-            long = await prompt("Enter longitude: ")
-            if long.lower() == "exit":
-                break
-            if lat.strip() and long.strip():
-                dest.append((float(lat), float(long)))
-            else:
-                self.log("Both latitude and longitude must be provided")
-        destinations_str = ', '.join([f'({lat}, {lon})' for lat, lon in dest])
-        return destinations_str 
-
 
 async def main(args):
     mission_completed = False
@@ -384,18 +368,18 @@ async def main(args):
         mission_details = ''
         if(agent.get_creds()):
             options = (
-                "    (1) Send Proof Request\n"
-                "    (2) Fly Drone\n"
-               # "    (3) Change Drone Starting Position\n"
-                "    (3) Request Mission Data\n"
+                "    (1) Issue Credential\n"
+                "    (2) Send Proof Request\n"
+                "    (3) Send Task\n"
+                "    (4) Request Mission Data\n"
                 "    (X) Exit?\n"
-                "[1/2/3/4/X] "
+                "[1/2/3/4/X]"
             )
         else:
             log_status("DRONE IS UNVERIFIABLE. EXIT THE CONNECTION")
             options = (
                 "    (X) Exit?\n"
-                "[X] "
+                "[X]"
             )
         async for option in prompt_loop(options):
             if option is not None:
@@ -404,7 +388,7 @@ async def main(args):
             if option is None or option in "xX":
                 break
 
-            elif option == "10":
+            elif option == "1":
                 log_status("#13 Issue credential offer to X")
                 agent.cred_attrs[cred_def_id] = {
                     "employee_id": "ACME0009",
@@ -430,7 +414,7 @@ async def main(args):
                     "/issue-credential-2.0/send-offer", offer_request
                 )
 
-            elif option == "1":
+            elif option == "2":
                 log_status("#7 Request proof of certification from drone")
                 req_attrs = [
                     {
@@ -476,33 +460,14 @@ async def main(args):
                     proof_request_web_request
                 )
 
-            elif option == "2":
-                destinations = []
-                destinations = await agent.collect_destinations()
-                check = await prompt(f"You inputs are {destinations}. Are these correct (Y/N)?: ")
-                if ('y' in check.lower()):
-                    cont = '3' + destinations
-                    await agent.admin_POST(
-                        f"/connections/{agent.connection_id}/send-message", {"content": cont}
-                    )
-                else: 
-                    agent.log("Locations aborted. Try again.")
-
-            # elif option == "3":
-            #     lat = await prompt("Enter latitude: ")
-            #     long = await prompt("Enter longitude: ")
-            #     coord = (f"({lat}, {long})")
-            #     check = await prompt(f"You input is {coord}. Are these correct (Y/N)?: ")
-            #     if ('y' in check.lower()):
-            #         cont = '4' + coord 
-            #         await agent.admin_POST(
-            #             f"/connections/{agent.connection_id}/send-message", {"content": cont}
-            #         )
-            #     else:
-            #         agent.log("Home alteration aborted. Try again.")
+            elif option == "3":
+                msg = await prompt("Enter task: ")
+                await agent.admin_POST(
+                    f"/connections/{agent.connection_id}/send-message", {"content": '3'}
+                )
 
                # await agent.returnMission()
-            elif option == "3":
+            elif option == "4":
                 if not(agent.get_mission_completed()):
                     agent.log('No Mission Data')
                 else:

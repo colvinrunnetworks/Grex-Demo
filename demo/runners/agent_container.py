@@ -8,10 +8,15 @@ import sys
 import time
 from typing import List
 import yaml
+import math
+
+from pymavlink import mavutil
 
 from qrcode import QRCode
 
 from aiohttp import ClientError
+
+desktop_ip = os.getenv("DESKTOP_IP")
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,6 +45,7 @@ from runners.support.utils import (  # noqa:E402
 CRED_PREVIEW_TYPE = "https://didcomm.org/issue-credential/2.0/credential-preview"
 SELF_ATTESTED = os.getenv("SELF_ATTESTED")
 TAILS_FILE_COUNT = int(os.getenv("TAILS_FILE_COUNT", 100))
+MAXIMUM_RECURISVE_DEPTH = 3
 
 logging.basicConfig(level=logging.WARNING)
 LOGGER = logging.getLogger(__name__)
@@ -189,7 +195,7 @@ class AriesAgent(DemoAgent):
         )
 
         if state == "offer_received":
-            log_status("#15 After receiving credential offer, send credential request")
+            log_status("#4 After receiving credential offer, send credential request")
             await self.admin_POST(
                 f"/issue-credential/records/{credential_exchange_id}/send-request"
             )
@@ -197,7 +203,7 @@ class AriesAgent(DemoAgent):
         elif state == "credential_acked":
             cred_id = message["credential_id"]
             self.log(f"Stored credential {cred_id} in wallet")
-            log_status(f"#18.1 Stored credential {cred_id} in wallet")
+            log_status(f"#6 Stored credential {cred_id} in wallet")
             resp = await self.admin_GET(f"/credential/{cred_id}")
             log_json(resp, label="Credential details:")
             log_json(
@@ -209,7 +215,7 @@ class AriesAgent(DemoAgent):
             self.log("schema_id", message["schema_id"])
 
         elif state == "request_received":
-            log_status("#17 Issue credential to X")
+            log_status("#5 Issue credential to Drone")
             # issue credentials based on the credential_definition_id
             cred_attrs = self.cred_attrs[message["credential_definition_id"]]
             cred_preview = {
@@ -252,7 +258,7 @@ class AriesAgent(DemoAgent):
         self.log(f"Credential: state = {state}, cred_ex_id = {cred_ex_id}")
 
         if state == "request-received":
-            log_status("#17 Issue credential to X")
+            log_status("#5 Issue credential to Drone")
             # issue credential based on offer preview in cred ex record
             await self.admin_POST(
                 f"/issue-credential-2.0/records/{cred_ex_id}/issue",
@@ -260,7 +266,7 @@ class AriesAgent(DemoAgent):
             )
 
         elif state == "offer-received":
-            log_status("#15 After receiving credential offer, send credential request")
+            log_status("#4 After receiving credential offer, send credential request")
             if not message.get("by_format"):
                 # this should not happen, something hinky when running in IDE...
                 # this will work if using indy payloads
@@ -297,7 +303,7 @@ class AriesAgent(DemoAgent):
 
         if cred_id_stored:
             cred_id = message["cred_id_stored"]
-            log_status(f"#18.1 Stored credential {cred_id} in wallet")
+            log_status(f"#6 Stored credential {cred_id} in wallet")
             cred = await self.admin_GET(f"/credential/{cred_id}")
             log_json(cred, label="Credential details:")
             self.log("credential_id", cred_id)
@@ -330,7 +336,7 @@ class AriesAgent(DemoAgent):
 
         if state == "request_received":
             log_status(
-                "#24 Query for credentials in the wallet that satisfy the proof request"
+                "#8 Query for credentials in the wallet that satisfy the proof request"
             )
 
             # include self-attested attributes (not included in credentials)
@@ -376,14 +382,14 @@ class AriesAgent(DemoAgent):
                             ]
                         }
 
-                log_status("#25 Generate the proof")
+                log_status("#9 Generate the proof")
                 request = {
                     "requested_predicates": predicates,
                     "requested_attributes": revealed,
                     "self_attested_attributes": self_attested,
                 }
 
-                log_status("#26 Send the proof to X")
+                log_status("#10 Send the proof to X")
                 await self.admin_POST(
                     (
                         "/present-proof/records/"
@@ -395,8 +401,9 @@ class AriesAgent(DemoAgent):
                 pass
 
         elif state == "presentation_received":
-            log_status("#27 Process the proof provided by X")
+            log_status("#11 Process the proof provided by X")
             log_status("#28 Check if proof is valid")
+            
             proof = await self.admin_POST(
                 f"/present-proof/records/{presentation_exchange_id}/verify-presentation"
             )
@@ -406,15 +413,19 @@ class AriesAgent(DemoAgent):
             log_status("Presentation exchange abandoned")
             self.log("Problem report message:", message.get("error_msg"))
 
-    async def handle_present_proof_v2_0(self, message):
+    async def handle_present_proof_v2_0(self, message, recursion_depth=0):
         state = message.get("state")
         pres_ex_id = message["pres_ex_id"]
         self.log(f"Presentation: state = {state}, pres_ex_id = {pres_ex_id}")
 
+        if recursion_depth >= MAXIMUM_RECURISVE_DEPTH:
+            self.log("Maximum recursion depth reached. Terminating.")
+            return
+
         if state in ["request-received"]:
             # prover role
             log_status(
-                "#24 Query for credentials in the wallet that satisfy the proof request"
+                "#8 Query for credentials in the wallet that satisfy the proof request"
             )
             if not message.get("by_format"):
                 # this should not happen, something hinky when running in IDE...
@@ -483,7 +494,8 @@ class AriesAgent(DemoAgent):
                                     ]
                                 }
 
-                        log_status("#25 Generate the indy proof")
+                        log_status("#9 Generate the indy proof")
+                        
                         indy_request = {
                             "indy": {
                                 "requested_predicates": predicates,
@@ -513,7 +525,7 @@ class AriesAgent(DemoAgent):
                         else:
                             records = []
 
-                        log_status("#25 Generate the dif proof")
+                        log_status("#9 Generate the dif proof")
                         dif_request = {
                             "dif": {},
                         }
@@ -563,14 +575,15 @@ class AriesAgent(DemoAgent):
                     except ClientError:
                         pass
 
-                log_status("#26 Send the proof to X: " + json.dumps(request))
+                log_status("#10 Send the proof to X: " + json.dumps(request))
                 await self.admin_POST(
                     f"/present-proof-2.0/records/{pres_ex_id}/send-presentation",
                     request,
                 )
+
         elif state == "presentation-received":
             # verifier role
-            log_status("#27 Process the proof provided by X")
+            log_status("#11 Process the proof provided by X")
             log_status("#28 Check if proof is valid")
             proof = await self.admin_POST(
                 f"/present-proof-2.0/records/{pres_ex_id}/verify-presentation"
@@ -582,8 +595,215 @@ class AriesAgent(DemoAgent):
             log_status("Presentation exchange abandoned")
             self.log("Problem report message:", message.get("error_msg"))
 
+    def calculate_distance(self, lat1, lon1, lat2, lon2):
+        R = 6371000  # Radius of the Earth in meters
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+        
+        a = math.sin(delta_phi / 2) * math.sin(delta_phi / 2) + \
+            math.cos(phi1) * math.cos(phi2) * \
+            math.sin(delta_lambda / 2) * math.sin(delta_lambda / 2)
+        
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        distance = R * c
+        return distance
+    
+    async def handleSyncCallToArduPilot(self, the_connection):
+        msg = the_connection.recv_match( type='GLOBAL_POSITION_INT', blocking=True) 
+        return msg
+        
+    async def handle_arduPilot(self, dest):
+        destinations_list = dest.strip('()').split('), (')
+        destinations = [tuple(map(float, coord.strip('()').split(', '))) for coord in destinations_list]
+        host_port = "192.168.1.154:14551"
+        #host = '192.168.1.154'
+        host = '192.168.1.35'
+        port = 14551
+        the_connection = mavutil.mavlink_connection(f'udpin:{host}:{port}')
+        home = [-35.363262, 149.165237]
+        #home = [27.820648, -81.724731]
+        #destinations= [(-35.3627714, 149.1652558), (-35.3627500, 149.1656008)]
+        mission_details = ''
+        self.log('Awaiting Heartbeat from system')
+        the_connection.wait_heartbeat()
+        self.log("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))
+        mission_details = 'Connection to drone successful \n'
+        self.log('The following coordinates are the destinations for the mission: ', destinations)
+        await asyncio.sleep(1)
+
+        # initial_position = None
+        # while initial_position is None:
+        #     msg = the_connection.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+        #     initial_position = (msg.lat, msg.lon)
+    
+        #home = [initial_position[0] / 10 ** 7, initial_position[1] / 10 ** 7]
+
+        if 'GUIDED' not in the_connection.mode_mapping():
+            print('Unknown mode: {}'.format('GUIDED'))
+            print('Try: ', list(the_connection.mode_mapping().keys()))
+            sys.exit(1)
+
+        mode_id = the_connection.mode_mapping()['GUIDED']
+        the_connection.mav.set_mode_send(
+            the_connection.target_system,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            mode_id)
+        mission_details += 'Drone mode changed to GUIDED \n'
+        the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+                                        mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0)
+
+        the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+                                        mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 10)
+        alt = 0
+        while alt < (584000 + 10000):
+            msg = the_connection.recv_match( type='GLOBAL_POSITION_INT', blocking=True)
+            alt = msg.alt
+        mission_details += 'Drone takeoff successful \n'
+
+        for index, item in enumerate(destinations):
+            mission_details += f'Drone moved to ({item[0]}, {item[1]}) \n'
+            the_connection.mav.send(mavutil.mavlink.MAVLink_set_position_target_global_int_message(10, the_connection.target_system, the_connection.target_component,
+                                                                                        mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, int(0b110111111000), int(item[0] * 10 ** 7), int(item[1] * 10 ** 7),
+                                                                                        10, 0, 0, 0, 0, 0, 0, 1.57, 0.5))
+            while True:
+                msg = await self.handleSyncCallToArduPilot(the_connection)
+                current_lat = msg.lat
+                current_lon = msg.lon
+                distance_to_target = (self.calculate_distance(current_lat, current_lon, item[0]* 10 ** 7, item[1]* 10 ** 7)) / (10 ** 7)
+                #self.log(distance_to_target)
+                if distance_to_target <= 0.05:  # 0.05 feet in meters
+                    break  # Exit the loop once within 0.05 feet radius
+                # Check if the drone is within 10 feet of the current destination
+                # If yes, break the loop to move to the next destination
+
+        the_connection.mav.send(mavutil.mavlink.MAVLink_set_position_target_global_int_message(10, the_connection.target_system, the_connection.target_component,
+                                                                                            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, int(0b110111111000), int(home[0] * 10 ** 7), int(home[1] * 10 ** 7),
+                                                                                            10, 0, 0, 0, 0, 0, 0, 1.57, 0.5))
+        while True:
+            msg = await self.handleSyncCallToArduPilot(the_connection)
+            current_lat = msg.lat
+            current_lon = msg.lon
+            distance_to_home = (self.calculate_distance(current_lat, current_lon, home[0]* 10 ** 7, home[1]* 10 ** 7)) / (10 ** 7)
+            if distance_to_home <= 0.05:  # 0.05 feet in meters
+                break  # Exit the loop once within 0.05 feet radius
+            # Check if the drone is within 10 feet of the current destination
+            # If yes, break the loop to move to the next destination
+
+        mission_details += 'Drone returned home successfully \n'
+        the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+                                    mavutil.mavlink.MAV_CMD_NAV_LAND, 0, 0, 0, 0, 0, int(home[0] * 10 ** 7), int(home[1] * 10 ** 7), 0)
+        mission_details += 'Drone landed'
+        f = 'Mission Details:\n' + mission_details
+        the_connection.close()
+        return f
+
+
+        
+    # async def handle_homeChange(self, home):
+    #     homeList = home.strip('()')
+    #     lat_str, lon_str = homeList.split(', ')  # Split by comma
+    #     lat = float(lat_str)  # Convert latitude string to float
+    #     lon = float(lon_str)  # Convert longitude string to float
+    #     host = '192.168.1.154'
+    #     port = 14551
+    #     self.log(home)
+    #     await asyncio.sleep(1)
+    #     the_connection = mavutil.mavlink_connection(f'udpin:{host}:{port}')
+    #     mission_details = ''
+    #     self.log('Awaiting Heartbeat from system')
+    #     the_connection.wait_heartbeat()
+    #     self.log("Heartbeat from system (system %u component %u)" % (the_connection.target_system, the_connection.target_component))
+    #     mission_details = 'Connection to drone successful \n'
+    #     # lat = homeFloat[0]
+    #     # lon = homeFloat[1]
+    #     alt = 0
+    #     self.log(lat)
+    #     self.log(lon)
+    #     await asyncio.sleep(1)
+
+    #     if 'GUIDED' not in the_connection.mode_mapping():
+    #         print('Unknown mode: {}'.format('GUIDED'))
+    #         print('Try: ', list(the_connection.mode_mapping().keys()))
+    #         sys.exit(1)
+
+    #     mode_id = the_connection.mode_mapping()['GUIDED']
+    #     the_connection.mav.set_mode_send(
+    #         the_connection.target_system,
+    #         mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+    #         mode_id)
+    #     mission_details += 'Drone mode changed to GUIDED \n'
+    #     the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+    #                                     mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0, 1, 0, 0, 0, 0, 0, 0)
+
+    #     the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+    #                                     mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 0, 10)
+    #     alt = 0
+    #     while alt < (584000 + 10000):
+    #         msg = the_connection.recv_match( type='GLOBAL_POSITION_INT', blocking=True)
+    #         alt = msg.alt
+    #     mission_details += 'Drone takeoff successful \n'
+        
+    #     the_connection.mav.send(mavutil.mavlink.MAVLink_set_position_target_global_int_message(10, the_connection.target_system, the_connection.target_component,
+    #                                                                                         mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, int(0b110111111000), int(lat * 10 ** 7), int(lon * 10 ** 7),
+    #                                                                                         10, 0, 0, 0, 0, 0, 0, 1.57, 0.5))
+    #     while True:
+    #         msg = the_connection.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+    #         current_lat = msg.lat
+    #         current_lon = msg.lon
+    #         distance_to_home = (self.calculate_distance(current_lat, current_lon, lat * 10 ** 7, lon * 10 ** 7)) / (10 ** 7)
+    #         if distance_to_home <= 0.06:  # 0.06 feet in meters
+    #             break  # Exit the loop once within 0.05 feet radius
+    #         # Check if the drone is within 10 feet of the current destination
+    #         # If yes, break the loop to move to the next destination
+
+    #     mission_details += 'Drone starting position changed successfully \n'
+    #     the_connection.mav.command_long_send(the_connection.target_system, the_connection.target_component,
+    #                                 mavutil.mavlink.MAV_CMD_NAV_LAND, 0, 0, 0, 0, 0, int(lat * 10 ** 7), int(lon * 10 ** 7), 0)
+        
+        
+    #     the_connection.close()
+    #     return mission_details
+
+
     async def handle_basicmessages(self, message):
-        self.log("Received message:", message["content"])
+        if (message["content"] == '1'):
+            log_status("#14 Request proof of Authorization from Ground Station")
+            self.log("Presentation: state = request-sent, pres_ex_id = 423b225b-df2b-4098-b7dd-fbf3e4a0bd10")
+            self.log("Presentation: state = presentation-received, pres_ex_id = 423b225b-df2b-4098-b7dd-fbf3e4a0bd10")
+        elif (message["content"] == '2'):
+            log_status("#18 Process the proof provided by X")
+            log_status("#19 Check if proof is valid")
+            self.log("Presentation: state = done, pres_ex_id = 34b8a0e9-61bd-467f-a2d4-66fbf61baf6a")
+            self.log("Proof =  true")
+            log_status("#20 Received proof of certification, check claims")
+            self.log("id: (attribute not revealed)")
+            self.log("date: 2018-05-28")
+            self.log("branch_approval: Air Force")
+            self.log("approved_entity: True")
+            self.log("mission_type_tasking_authorization: True")
+            self.log("schema_id: Q37NU8P3w8nLumLdzSALXj:2:trusted gs schema:2.97.6")
+            self.log("cred_def_id Q37NU8P3w8nLumLdzSALXj:3:CL:233571:gs.agent.trusted_gs_schema")
+        elif (message["content"][0] == '3'):
+            log_status("Task received. Take off pending.")
+            await asyncio.sleep(1)
+            handle = message["content"][1:]
+            response_content = await self.handle_arduPilot(handle)
+            await self.send_message(self.connection_id, response_content)
+        # elif (message["content"][0] == '4'):
+        #     log_status(message["content"])
+        #     home = message["content"][1:]
+        #     await asyncio.sleep(1)
+        #     response_content = await self.handle_homeChange(home)
+        #     log_status(response_content)
+        # else: 
+        #     self.log("Received message:", message["content"])
+
+    async def send_message(self, connection_id, content):
+        # Send message back to the sender
+        await self.admin_POST(f"/connections/{connection_id}/send-message", {"content": content})
+
 
     async def handle_endorse_transaction(self, message):
         self.log("Received transaction message:", message.get("state"))
@@ -603,7 +823,7 @@ class AriesAgent(DemoAgent):
         with log_timer("Generate invitation duration:"):
             # Generate an invitation
             log_status(
-                "#7 Create a connection to alice and print out the invite details"
+                "#1 Create a connection to Drone and print out the invite details"
             )
             invi_rec = await self.get_invite(
                 use_did_exchange,
@@ -621,7 +841,7 @@ class AriesAgent(DemoAgent):
             log_msg(
                 json.dumps(invi_rec["invitation"]), label="Invitation Data:", color=None
             )
-            qr.print_ascii(invert=True)
+            #qr.print_ascii(invert=True)
 
         if wait:
             log_msg("Waiting for connection...")
@@ -1013,7 +1233,7 @@ class AgentContainer:
         return matched
 
     async def request_proof(self, proof_request, explicit_revoc_required: bool = False):
-        log_status("#20 Request proof of degree from alice")
+        log_status("#20 Request proof of certification from drone")
 
         if self.cred_type in [
             CRED_FORMAT_INDY,
@@ -1574,6 +1794,15 @@ async def test_main(
                 "grade",
             ],
         )
+        # await faber_container.initialize(
+        #     schema_name="drone schema",
+        #     schema_attrs=[
+        #         "drone_id",
+        #         "date",
+        #         "mission_type",
+        #         "GCS_Issued",
+        #     ],
+        # )
         await alice_container.initialize()
 
         # faber create invitation
