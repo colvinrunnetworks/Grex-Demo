@@ -1,4 +1,4 @@
-# Hyperledger Aries Cloud Agent - Python  <!-- omit in toc -->
+# Hyperledger Aries Cloud Agent - Python (Altered for Grex)  <!-- omit in toc -->
 
 [![pypi releases](https://img.shields.io/pypi/v/aries_cloudagent)](https://pypi.org/project/aries-cloudagent/)
 [![codecov](https://codecov.io/gh/hyperledger/aries-cloudagent-python/branch/main/graph/badge.svg)](https://codecov.io/gh/hyperledger/aries-cloudagent-python)
@@ -9,6 +9,32 @@
 
 Full access to an organized set of all of the ACA-Py documents is available at [https://aca-py.org](https://aca-py.org).
 Check it out! It's much easier to navigate than this GitHub repo for reading the documentation.
+
+## Alteration for Grex ***
+This project follows the general set up instructions that are set forth in the [demo setup](https://github.com/colvinrunnetworks/Grex-Demo/blob/main/docs/demo/README.md). However, this project has been altered to help show a table top demonstration of how Grex would work to authenticate and validate verifiable credentials through the blockchain. Because of this, the current demo repository runs with a few certain parameters. This current version utilizes agent communication ran locally, **Not In Docker**. The set up instructions found [in the demo tab](https://github.com/hyperledger/aries-cloudagent-python/blob/main/docs/demo/README.md) will help you set up the agents locally as well as set up any other dependencies needed. In addition to this demo running locally, it also relies on the use of BCovrin sandbox in order to run and not a VON network connection. 
+
+You should utilize commands such as: ``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo faber ``` to run the agent with the BCovrin blockchain sandbox.
+
+Some file names have been altered. In general faber.py = authorizing entity, alice.py = drone, and acme.py = ground control station 1. For the counter example where the drones do **not** connect, drone2.py and gcs2.py represent the drone and ground control station respectively.   
+
+This demo is meant to represent the secure communication between the blockchain and Aries agents, one of which is represented to be deployed on a drone. For the full demo to work, a drone simulation must be set up and running to send commands. This demo was developed using the [Ardupilot SITL](https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html) which **must** be running in order for the demo to work. There is a function in the [agent_container.py file](https://github.com/colvinrunnetworks/Grex-Demo/blob/main/demo/runners/agent_container.py) in the demo folder (line 622 and 623) which you must change the host and port number in order to connect to the correct port with the SITL. Although not required, this demo used QGroundControl to track the drone's route visually. The program can run without the Ground Station, but you will not see the drone actually move without it. 
+
+This Demo also assumes the use of Python version 3.11. Either change the versioning or utilize a virtual environment in the terminal. You will run into errors without the correct version of Python running. 
+
+**To run the demo** 
+
+Ensure that the SITL is up and running. With the SITL, ensure you have exposed the correct ports and that you have altered the agent_container.py file to have the correct host ip and port number. You will get stuck in an infinite loop if you have the incorrect host ip address and port number. Once you are sure that it running correctly, you can optionally open QGroundControl. Assuming the SITL is configured correctly, the drone should appear on the screen with no extra alteration needed. 
+
+You will need 3 terminals windows open. Change directories to the /demo/runners folder. Run each agent:
+``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo faber ```
+``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo alice ```
+``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo acme ```
+Faber is your authorizing entity
+Alice is your drone
+Acme is your Ground Control Station
+(Hint: if you run into errors at this stage, make sure that you are running the correct version of Python needed by this repo)
+
+The demo should be running at this point and you should be able to do the handshake as instructed. Connect the authorizing entity and drone, pass the verifiable credential from the authorizing entity to the drone. Connect the ground control station to the drone next. It should verify the verifiable credential without prompting. You should then be able to feed the drone flight instructions from the ground control station. This should complete the demo.
 
 ## Overview
 
