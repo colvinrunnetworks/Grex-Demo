@@ -26,9 +26,9 @@ This Demo also assumes the use of Python version 3.11. Either change the version
 Ensure that the SITL is up and running. With the SITL, ensure you have exposed the correct ports and that you have altered the agent_container.py file to have the correct host ip and port number. You will get stuck in an infinite loop if you have the incorrect host ip address and port number. Once you are sure that it running correctly, you can optionally open QGroundControl. Assuming the SITL is configured correctly, the drone should appear on the screen with no extra alteration needed. 
 
 You will need 3 terminals windows open. Change directories to the /demo folder. Run each agent in its own terminal:    
-``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo faber ```  
-``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo alice ```   
-``` LEDGER_URL=http://test.bcovrin.vonx.io ./run_demo acme ```  
+``` LEDGER_URL=http://test.bcovrin.vonx.io DEFAULT_POSTGRES=true python3 -m runners.faber --port 8020 ```  
+``` LEDGER_URL=http://test.bcovrin.vonx.io DEFAULT_POSTGRES=true python3 -m runners.alice --port 8030 ```   
+``` LEDGER_URL=http://test.bcovrin.vonx.io DEFAULT_POSTGRES=true python3 -m runners.acme --port 8040 ```  
 Faber is your authorizing entity  
 Alice is your drone  
 Acme is your Ground Control Station  
